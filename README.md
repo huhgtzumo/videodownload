@@ -6,29 +6,29 @@
 
 - 支持 YouTube 視頻下載（MP4 格式，QuickTime 兼容）
 - 自動獲取視頻字幕
-- 使用 GPT-3.5 生成視頻內容摘要
-- 實時顯示下載進度
+- 使用 GPT-3.5 生成視頻內容摘要（包含 emoji 和格式化顯示）
+- 實時顯示下載和合併進度
 - 支持視頻播放預覽
 
 ## 技術棧
 
 ### 後端
 - Flask
-- yt-dlp
-- OpenAI API
-- FFmpeg
+- yt-dlp (YouTube 下載工具)
+- OpenAI API (GPT-3.5)
+- FFmpeg (視頻處理)
 
 ### 前端
 - React
 - Axios
-- CSS3
+- react-markdown (格式化顯示)
 
 ## 環境要求
 
-- Docker
+- Docker Desktop
 - Docker Compose
 - OpenAI API Key
 
 ## 快速開始
 
-1. 克隆倉庫： 
+1. 克隆倉庫：
