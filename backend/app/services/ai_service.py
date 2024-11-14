@@ -18,18 +18,37 @@ class AIService:
             if not transcript or transcript == "無字幕內容":
                 return "無法生成摘要：未找到字幕內容"
 
-            # 限制輸入長度，取前 12000 個字符
+            # 限制輸入長度
             max_length = 12000
             if len(transcript) > max_length:
                 transcript = transcript[:max_length] + "..."
 
             response = self.client.chat.completions.create(
-                model="gpt-3.5-turbo-16k",  # 使用 16k 版本
+                model="gpt-3.5-turbo-16k",
                 messages=[
-                    {"role": "system", "content": """你是一個專業的影片摘要助手。請按照以下格式總結視頻內容：
-                    1. 主要主題：（一句話描述視頻主題）
-                    2. 關鍵重點：（使用項目符號列出3-5個要點）
-                    3. 結論或總結：（總結視頻的主要觀點或結論）
+                    {"role": "system", "content": """你是一個專業的影片摘要助手。請使用以下格式生成摘要，確保使用emoji和markdown格式：
+
+## 🎯 主要主題
+用一句話描述視頻的核心主題
+
+## 📝 內容重點
+1. **重點一**：[相關描述]
+2. **重點二**：[相關描述]
+3. **重點三**：[相關描述]
+（根據內容可以有3-5個重點）
+
+## 💡 關鍵見解
+• [第一個見解]
+• [第二個見解]
+（列出2-3個重要見解）
+
+## 🔍 結論
+總結視頻的主要觀點和結論
+
+請確保：
+- 每個部分都使用適當的emoji
+- 重要內容使用粗體標記
+- 保持條理清晰的格式
                     """},
                     {"role": "user", "content": transcript}
                 ],

@@ -5,7 +5,8 @@ WORKDIR /app
 ENV NPM_CONFIG_LOGLEVEL verbose
 
 COPY package*.json ./
-RUN npm install --no-optional --max-attempts=5 --retry=3
+RUN npm install react-markdown --save && \
+    npm install --no-optional --max-attempts=5 --retry=3
 
 COPY . .
 
