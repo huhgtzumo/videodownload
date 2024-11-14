@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 import './VideoForm.css';
+import ReactMarkdown from 'react-markdown';
 
 const VideoForm = () => {
   const [url, setUrl] = useState('');
@@ -9,6 +10,8 @@ const VideoForm = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [processStatus, setProcessStatus] = useState('');
+  const [downloadStatus, setDownloadStatus] = useState('');
+  const [mergeStatus, setMergeStatus] = useState('');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -51,7 +54,8 @@ const VideoForm = () => {
   const handleDownload = async () => {
     try {
         setLoading(true);
-        setProcessStatus('開始下載...');
+        setDownloadStatus('準備下載...');
+        setMergeStatus('');
         
         const response = await axios.post(
             'http://localhost:5001/api/video/download', 
@@ -59,11 +63,13 @@ const VideoForm = () => {
             { 
                 responseType: 'blob',
                 onDownloadProgress: (progressEvent) => {
-                    const total = progressEvent.total;
-                    if (total) {
-                        const percentCompleted = Math.round((progressEvent.loaded * 100) / total);
-                        setProcessStatus(`下載進度: ${percentCompleted}%`);
-                        console.log(`下載進度: ${percentCompleted}%`);
+                    if (progressEvent.total) {
+                        const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+                        if (percentCompleted <= 100) {
+                            setDownloadStatus(`下載進度: ${percentCompleted}%`);
+                        } else {
+                            setMergeStatus(`合併進度: ${percentCompleted - 100}%`);
+                        }
                     }
                 }
             }
@@ -103,7 +109,8 @@ const VideoForm = () => {
     } catch (error) {
         console.error('下載失敗:', error);
         setError('下載失敗，請稍後再試');
-        setProcessStatus('');
+        setDownloadStatus('');
+        setMergeStatus('');
     } finally {
         setLoading(false);
     }
@@ -160,10 +167,15 @@ const VideoForm = () => {
           
           {summary && (
             <div className="summary">
-              <h3>視頻摘要：</h3>
-              <p>{summary}</p>
+                <h3>📊 視頻摘要</h3>
+                <div className="markdown-content">
+                    <ReactMarkdown>{summary}</ReactMarkdown>
+                </div>
             </div>
           )}
+          
+          {downloadStatus && <div className="status-message">{downloadStatus}</div>}
+          {mergeStatus && <div className="status-message">{mergeStatus}</div>}
         </div>
       )}
     </div>
