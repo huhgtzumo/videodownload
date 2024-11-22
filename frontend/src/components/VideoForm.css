@@ -45,19 +45,34 @@
 }
 
 .markdown-content {
+  padding: 20px;
   line-height: 1.6;
-  color: #34495e;
+  color: #2c3e50;
 }
 
 .markdown-content h2 {
   color: #2c3e50;
+  margin-top: 30px;
+  margin-bottom: 15px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid #eee;
+}
+
+.markdown-content h3 {
+  color: #34495e;
+  margin-top: 25px;
+  margin-bottom: 10px;
+}
+
+.markdown-content h4 {
+  color: #3498db;
   margin-top: 20px;
   margin-bottom: 10px;
-  font-size: 1.3em;
 }
 
 .markdown-content strong {
-  color: #16a085;
+  color: #e74c3c;
+  font-weight: 600;
 }
 
 .markdown-content ul {
@@ -76,14 +91,18 @@
 
 /* 下載按鈕樣式 */
 .download-button {
+  margin-top: 20px;
+  padding: 10px 20px;
   background-color: #4CAF50;
   color: white;
-  padding: 10px 20px;
   border: none;
   border-radius: 4px;
   cursor: pointer;
-  font-size: 16px;
-  margin: 10px 0;
+  transition: background-color 0.3s;
+}
+
+.download-button:hover {
+  background-color: #45a049;
 }
 
 .download-button:disabled {
@@ -91,16 +110,32 @@
   cursor: not-allowed;
 }
 
-.download-button:hover:not(:disabled) {
-  background-color: #45a049;
+.process-status {
+  margin: 20px 0;
+  padding: 15px;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
-.process-status {
-    margin: 10px 0;
-    padding: 10px;
-    background-color: #f8f9fa;
-    border-radius: 4px;
-    border-left: 4px solid #4CAF50;
+.status-message {
+  margin-bottom: 10px;
+  color: #2c3e50;
+  font-weight: 500;
+}
+
+.progress-bar {
+  width: 100%;
+  height: 8px;
+  background-color: #e9ecef;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background-color: #4CAF50;
+  transition: width 0.3s ease-in-out;
 }
 
 .controls {
@@ -110,29 +145,5 @@
     margin: 10px 0;
     padding: 10px;
     background-color: #f8f9fa;
-    border-radius: 4px;
-}
-
-/* 進度條樣式 */
-.progress-bar {
-    width: 100%;
-    height: 20px;
-    background-color: #f0f0f0;
-    border-radius: 10px;
-    overflow: hidden;
-    margin: 10px 0;
-}
-
-.progress-bar-fill {
-    height: 100%;
-    background-color: #4CAF50;
-    transition: width 0.3s ease-in-out;
-}
-
-.status-message {
-    margin: 10px 0;
-    padding: 8px;
-    background-color: #f0f8ff;
-    border-left: 4px solid #1e90ff;
     border-radius: 4px;
 } 
