@@ -75,8 +75,6 @@ const VideoForm = () => {
         setIsDownloading(true);
         setDownloadProgress(0);
         setDownloadStage('準備下載...');
-        setDownloadCompleted(false);
-        downloadRef.current = { progress: 0, stage: '' };
         
         // 清理之前的計時器
         if (mergeInterval.current) {
@@ -96,36 +94,38 @@ const VideoForm = () => {
                         let progress = 0;
                         
                         // 更新下載進度
-                        if (percent <= 20) {
-                            stage = '音頻文件下載中';
-                            progress = percent * 0.5;  // 10%
-                        } else if (percent <= 90) {
+                        if (percent <= 40) {
+                            // 視頻文件下載階段 (40%)
                             stage = '影片文件下載中';
-                            progress = 10 + ((percent - 20) * 0.8);  // 40%
+                            progress = percent;
+                            setDownloadStage(`${stage}：${progress}%`);
+                            setDownloadProgress(progress);
+                        } else if (percent <= 50) {
+                            // 音頻文件下載階段 (10%)
+                            stage = '音頻文件下載中';
+                            progress = 40 + ((percent - 40) * 10);
+                            setDownloadStage(`${stage}：${progress}%`);
+                            setDownloadProgress(progress);
                         } else {
+                            // 合併階段 (50%)
                             stage = '影片文件處理中';
-                            progress = 50;
-                            
-                            // 開始合併進度模擬
                             if (!mergeInterval.current) {
+                                progress = 50;
+                                setDownloadProgress(50);
+                                
+                                // 每秒增加1%，直到99%
                                 mergeInterval.current = setInterval(() => {
-                                    downloadRef.current.progress += 1;
-                                    if (downloadRef.current.progress < 99) {
-                                        setDownloadProgress(downloadRef.current.progress);
-                                        setDownloadStage(`影片文件處理中：${downloadRef.current.progress}%`);
-                                    } else {
-                                        clearInterval(mergeInterval.current);
-                                    }
+                                    setDownloadProgress(prev => {
+                                        const newProgress = prev + 1;
+                                        if (newProgress < 99) {
+                                            setDownloadStage(`影片文件處理中：${newProgress}%`);
+                                            return newProgress;
+                                        }
+                                        setDownloadStage(`影片文件處理中：99%`);
+                                        return 99;
+                                    });
                                 }, 1000);
                             }
-                        }
-                        
-                        // 更新進度顯示
-                        if (progress <= 50) {
-                            downloadRef.current.progress = progress;
-                            downloadRef.current.stage = stage;
-                            setDownloadProgress(progress);
-                            setDownloadStage(`${stage}：${Math.round(progress)}%`);
                         }
                     }
                 }
@@ -136,6 +136,19 @@ const VideoForm = () => {
         if (mergeInterval.current) {
             clearInterval(mergeInterval.current);
             mergeInterval.current = null;
+        }
+        
+        // 檢查響應類型
+        const contentType = response.headers['content-type'];
+        if (contentType && contentType.includes('application/json')) {
+            // 處理錯誤響應
+            const reader = new FileReader();
+            reader.onload = () => {
+                const error = JSON.parse(reader.result);
+                throw new Error(error.message || '下載失敗');
+            };
+            reader.readAsText(response.data);
+            return;
         }
         
         // 處理下載
@@ -153,14 +166,12 @@ const VideoForm = () => {
         // 設置完成狀態
         setDownloadStage('下載完成：100%');
         setDownloadProgress(100);
-        setDownloadCompleted(true);
         
     } catch (error) {
         console.error('下載失敗:', error);
-        setError('下載失敗，請稍後再試');
+        setError(error.message || '下載失敗，請稍後再試');
         setDownloadStage('下載失敗');
         setDownloadProgress(0);
-        setDownloadCompleted(false);
     } finally {
         setIsDownloading(false);
         if (mergeInterval.current) {
