@@ -11,10 +11,13 @@ const VideoForm = () => {
   const [videoInfo, setVideoInfo] = useState(null);
   const [processStatus, setProcessStatus] = useState('');
   const [isGeneratingNotes, setIsGeneratingNotes] = useState(false);
+  const [isNotesCompleted, setIsNotesCompleted] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(0);
   const [downloadStage, setDownloadStage] = useState('');
+  const [downloadCompleted, setDownloadCompleted] = useState(false);
   const [mergeProgress, setMergeProgress] = useState(0);
+  const downloadRef = useRef({ progress: 0, stage: '' });
   const mergeInterval = useRef(null);
 
   const handleSubmit = async (e) => {
@@ -24,6 +27,7 @@ const VideoForm = () => {
     setSummary('');
     setVideoInfo(null);
     setIsGeneratingNotes(true);
+    setIsNotesCompleted(false);
     
     // 設置進度更新定時器，每秒增加5%
     let progress = 0;
@@ -49,8 +53,9 @@ const VideoForm = () => {
       // 清除進度定時器
       clearInterval(progressInterval);
       
-      // 設置最終進度為100%
+      // 設置最終進度為100%並保持顯示
       setProcessStatus('AI筆記生成完成：100%');
+      setIsNotesCompleted(true);
       setSummary(summaryResponse.data.summary);
       
     } catch (err) {
@@ -70,10 +75,13 @@ const VideoForm = () => {
         setIsDownloading(true);
         setDownloadProgress(0);
         setDownloadStage('準備下載...');
+        setDownloadCompleted(false);
+        downloadRef.current = { progress: 0, stage: '' };
         
-        // 清理之前的合併進度計時器
+        // 清理之前的計時器
         if (mergeInterval.current) {
             clearInterval(mergeInterval.current);
+            mergeInterval.current = null;
         }
         
         const response = await axios.post(
@@ -87,33 +95,37 @@ const VideoForm = () => {
                         let stage = '';
                         let progress = 0;
                         
-                        if (percent <= 10) {
-                            // 音頻下載階段 (10%)
+                        // 更新下載進度
+                        if (percent <= 20) {
                             stage = '音頻文件下載中';
-                            progress = percent;
-                        } else if (percent <= 50) {
-                            // 視頻下載階段 (40%)
+                            progress = percent * 0.5;  // 10%
+                        } else if (percent <= 90) {
                             stage = '影片文件下載中';
-                            progress = 10 + ((percent - 10) * 40/40);
+                            progress = 10 + ((percent - 20) * 0.8);  // 40%
                         } else {
-                            // 合併階段 (50%)
                             stage = '影片文件處理中';
+                            progress = 50;
+                            
+                            // 開始合併進度模擬
                             if (!mergeInterval.current) {
-                                progress = 50;
-                                setDownloadProgress(50);
-                                // 每秒增加1%，直到99%
                                 mergeInterval.current = setInterval(() => {
-                                    setDownloadProgress(prev => {
-                                        if (prev < 99) return prev + 1;
-                                        return 99;
-                                    });
+                                    downloadRef.current.progress += 1;
+                                    if (downloadRef.current.progress < 99) {
+                                        setDownloadProgress(downloadRef.current.progress);
+                                        setDownloadStage(`影片文件處理中：${downloadRef.current.progress}%`);
+                                    } else {
+                                        clearInterval(mergeInterval.current);
+                                    }
                                 }, 1000);
                             }
                         }
                         
+                        // 更新進度顯示
                         if (progress <= 50) {
-                            setDownloadStage(`${stage}：${Math.round(progress)}%`);
+                            downloadRef.current.progress = progress;
+                            downloadRef.current.stage = stage;
                             setDownloadProgress(progress);
+                            setDownloadStage(`${stage}：${Math.round(progress)}%`);
                         }
                     }
                 }
@@ -124,20 +136,6 @@ const VideoForm = () => {
         if (mergeInterval.current) {
             clearInterval(mergeInterval.current);
             mergeInterval.current = null;
-        }
-        
-        // 檢查響應類型
-        const contentType = response.headers['content-type'];
-        if (contentType && contentType.includes('application/json')) {
-            // 處理錯誤響應
-            const reader = new FileReader();
-            reader.onload = () => {
-                const error = JSON.parse(reader.result);
-                setError(error.error || '下載失敗');
-                setDownloadStage('下載失敗');
-            };
-            reader.readAsText(response.data);
-            return;
         }
         
         // 處理下載
@@ -152,14 +150,17 @@ const VideoForm = () => {
         document.body.removeChild(link);
         window.URL.revokeObjectURL(downloadUrl);
         
+        // 設置完成狀態
         setDownloadStage('下載完成：100%');
         setDownloadProgress(100);
+        setDownloadCompleted(true);
         
     } catch (error) {
         console.error('下載失敗:', error);
         setError('下載失敗，請稍後再試');
         setDownloadStage('下載失敗');
         setDownloadProgress(0);
+        setDownloadCompleted(false);
     } finally {
         setIsDownloading(false);
         if (mergeInterval.current) {
@@ -186,7 +187,7 @@ const VideoForm = () => {
 
       {error && <div className="error">{error}</div>}
 
-      {isGeneratingNotes && (
+      {(isGeneratingNotes || isNotesCompleted) && (
         <div className="process-status">
           <div className="status-message">
             {processStatus}
@@ -230,18 +231,18 @@ const VideoForm = () => {
               {isDownloading ? '下載中...' : '下載視頻'}
             </button>
             
-            {isDownloading && (
-              <div className="download-progress">
-                <div className="status-message">
-                  {downloadStage}
+            {(isDownloading || downloadCompleted) && (
+                <div className="download-progress">
+                    <div className="status-message">
+                        {downloadStage}
+                    </div>
+                    <div className="progress-bar">
+                        <div 
+                            className={`progress-bar-fill ${downloadCompleted ? 'completed' : 'downloading'}`}
+                            style={{ width: `${downloadProgress}%` }}
+                        />
+                    </div>
                 </div>
-                <div className="progress-bar">
-                  <div 
-                    className="progress-bar-fill downloading"
-                    style={{ width: `${downloadProgress}%` }}
-                  />
-                </div>
-              </div>
             )}
           </div>
           

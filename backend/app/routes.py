@@ -37,32 +37,39 @@ def video_info():
 
 @app.route('/api/transcript', methods=['POST', 'OPTIONS'])
 def get_transcript():
+    """獲取視頻字幕"""
     if request.method == 'OPTIONS':
-        return jsonify({}), 200
+        return '', 200
         
     try:
-        logger.info("收到字幕請求")
         data = request.get_json()
         url = data.get('url')
-        logger.info(f"獲取字幕URL: {url}")
-        
         if not url:
-            return jsonify({'error': '請提供視頻URL'}), 400
-            
-        # 首先嘗試獲取字幕
-        transcript = get_video_transcript(url)
-        
-        # 如果無法獲取字幕，返回錯誤信息
-        if transcript in ["無法獲取字幕", "無字幕內容"]:
             return jsonify({
-                'error': '無法獲取視頻字幕，請稍後再試',
+                'error': '請提供視頻URL',
                 'status': 'error'
-            }), 404
+            }), 400
+            
+        logger.info(f"獲取字幕URL: {url}")
+        transcript_data = get_video_transcript(url)
         
-        logger.info("成功獲取文字內容")
-        return jsonify({'transcript': transcript})
+        if isinstance(transcript_data, str):
+            return jsonify({
+                'transcript': transcript_data,
+                'status': 'warning'
+            }), 200
+            
+        # 組合字幕文本和時間戳
+        transcript_text = '\n'.join([f"[{item['time']}] {item['text']}" for item in transcript_data])
+        
+        return jsonify({
+            'transcript': transcript_text,
+            'timestamps': transcript_data,
+            'status': 'success'
+        }), 200
+        
     except Exception as e:
-        logger.error(f"獲取文字內容時出錯: {str(e)}", exc_info=True)
+        logger.error(f"處理字幕請求時出錯: {str(e)}")
         return jsonify({
             'error': str(e),
             'status': 'error'
@@ -134,3 +141,14 @@ def get_process_status():
     if video_id in processing_status:
         return jsonify(processing_status[video_id])
     return jsonify({'status': 'unknown'})
+
+@app.route('/health')
+def health_check():
+    """健康檢查端點"""
+    try:
+        # 清理下載目錄
+        from .services.youtube_service import init_downloads_directory
+        init_downloads_directory()
+        return jsonify({'status': 'healthy'}), 200
+    except Exception as e:
+        return jsonify({'status': 'unhealthy', 'error': str(e)}), 500

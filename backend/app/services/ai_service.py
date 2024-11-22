@@ -30,20 +30,18 @@ class AIService:
         return sorted(timestamps)
     
     def format_toc_line(self, title, description, timestamp):
-        """格式化目錄行"""
+        """格式化目錄行，確保時間戳右對齊"""
         line_width = 80
         content = f"{title}：{description}"
-        padding = line_width - len(content) - len(timestamp) - 2
-        padding = max(1, padding)  # 確保至少有一個點
-        dots = '.' * padding
-        return f"{content}{dots}[{timestamp}]"
+        padding = line_width - len(content) - len(timestamp)
+        padding = max(1, padding)  # 確保至少有一個空格
+        return f"{content}{' ' * padding}{timestamp}"
     
     def process_toc(self, raw_toc):
-        """處理目錄格式，限制3-8個段落"""
+        """處理目錄格式"""
         lines = []
         raw_lines = raw_toc.strip().split('\n')
         
-        # 先收集所有有效的行
         for line in raw_lines:
             line = line.strip()
             if not line or ':' not in line or '[' not in line:
@@ -51,34 +49,24 @@ class AIService:
             
             try:
                 # 分離標題、描述和時間戳
-                main_part = line.split('[')[0].strip()
-                timestamp = line.split('[')[1].rstrip(']').strip()
+                content, timestamp = line.rsplit('[', 1)
+                timestamp = f"[{timestamp.rstrip(']')}]"
                 
-                if ':' in main_part:
-                    title, description = main_part.split(':', 1)
+                if ':' in content:
+                    title, description = content.split(':', 1)
                     title = title.strip()
                     description = description.strip()
                     
                     # 驗證時間格式
-                    if re.match(r'^\d{2}:\d{2}$', timestamp):
-                        minutes, seconds = map(int, timestamp.split(':'))
-                        if minutes * 60 + seconds <= self.video_duration:
-                            formatted_line = self.format_toc_line(title, description, timestamp)
-                            lines.append(formatted_line)
+                    if re.match(r'^\[\d{2}:\d{2}\]$', timestamp):
+                        formatted_line = self.format_toc_line(title, description, timestamp)
+                        lines.append(formatted_line)
             
             except Exception as e:
                 logger.error(f"處理目錄行時出錯: {str(e)}")
                 continue
         
-        # 檢查段落數量
-        if len(lines) < 3:
-            logger.warning(f"目錄段落數不足: {len(lines)} < 3")
-            return "目錄生成失敗：段落數不足，請重試"
-        elif len(lines) > 8:
-            logger.warning(f"目錄段落數過多，將截取前8段")
-            lines = lines[:8]
-        
-        return '\n'.join(lines)
+        return '\n'.join(lines) if lines else "無法生成目錄，請重試"
     
     def generate_toc(self, transcript):
         """生成目錄"""
@@ -86,41 +74,35 @@ class AIService:
             response = self.client.chat.completions.create(
                 model="gpt-3.5-turbo-16k",
                 messages=[
-                    {"role": "system", "content": f"""你是一個專業的視頻分析助手。請仔細理解整個視頻內容後，提取3-8個最重要的時間點作為目錄。
-
-視頻總長度為 {self.video_duration} 秒，請確保時間點不超過視頻長度。
-
-要求：
-1. 必須先完整理解視頻內容
-2. 選擇真正的內容轉折點作為段落分隔
-3. 確保每個時間點都代表重要的主題轉換
-4. 避免過於頻繁的分段
-5. 時間點應該均勻分布在整個視頻中
-6. 段落描述要簡潔但信息量充足
-7. 忽略所有廣告和贊助內容
+                    {"role": "system", "content": f"""你是一個專業的視頻分析助手。請按照以下格式生成視頻目錄：
 
 格式示例：
-開場介紹：本集內容概述 [02:15]
-核心概念：主要論點闡述 [05:30]
-案例分析：具體實例說明 [12:45]
-結論總結：重點內容回顧 [18:20]
+1、[02:15] 開場介紹：視頻主要內容概述
 
-注意：
-- 時間格式必須是 [MM:SS]
-- 總共不超過8個時間點
-- 至少需要3個時間點
-- 每個條目必須換行
-- 時間點不能超過視頻總長度
-                    """},
+2、[05:30] 核心論述：詳細分析和討論
+
+3、[12:45] 案例說明：具體實例和應用
+
+4、[18:20] 總結歸納：重點內容回顧
+
+要求：
+1. 每個條目必須包含序號、時間戳和主題說明
+2. 條目之間必須有空行
+3. 時間點必須按順序排列
+4. 時間點不能超過視頻總長度 {self.video_duration} 秒
+5. 忽略廣告和贊助內容
+6. 生成3-8個時間點
+7. 主題說明要準確概括該時間點的內容
+8. 使用實際的視頻內容時間點
+                """},
                     {"role": "user", "content": transcript}
                 ],
                 temperature=0.7,
                 max_tokens=500
             )
             
-            raw_toc = response.choices[0].message.content
-            formatted_toc = self.process_toc(raw_toc)
-            return formatted_toc
+            # 直接返回 AI 生成的內容
+            return response.choices[0].message.content
             
         except Exception as e:
             logger.error(f"生成目錄時發生錯誤: {str(e)}")

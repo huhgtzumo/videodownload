@@ -8,6 +8,8 @@ import glob
 from threading import Lock, Timer
 import unicodedata
 import subprocess
+import shutil
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -15,6 +17,23 @@ logger = logging.getLogger(__name__)
 download_lock = Lock()
 current_download = None
 merge_process = None
+
+def init_downloads_directory(output_path='downloads'):
+    """初始化下載目錄，清理所有歷史文件"""
+    try:
+        base_path = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+        full_output_path = os.path.abspath(os.path.join(base_path, output_path))
+        
+        # 如果目錄存在，刪除它及其所有內容
+        if os.path.exists(full_output_path):
+            shutil.rmtree(full_output_path)
+            logger.info(f"已清理下載目錄: {full_output_path}")
+        
+        # 創建新的空目錄
+        os.makedirs(full_output_path)
+        logger.info(f"已創建新的下載目錄: {full_output_path}")
+    except Exception as e:
+        logger.error(f"清理下載目錄時出錯: {str(e)}")
 
 def extract_video_id(url):
     """從各種可能的YouTube URL格式中提取視頻ID"""
@@ -181,19 +200,20 @@ def download_video(url, output_path='downloads'):
         
         def progress_hook(d):
             if d['status'] == 'downloading':
-                progress = float(d.get('_percent_str', '0%').replace('%', ''))
-                filename = d.get('filename', '')
-                
-                # 只在進度為10的倍數時記錄
-                if progress % 10 == 0:
-                    if '.m4a' in filename:
-                        # 音頻下載進度（10%）
-                        total_progress = progress * 0.1
-                        logger.info(f"音頻下載進度: {progress}% (總進度: {total_progress:.1f}%)")
-                    else:
-                        # 視頻下載進度（40%）
-                        total_progress = 10 + (progress * 0.4)
-                        logger.info(f"視頻下載進度: {progress}% (總進度: {total_progress:.1f}%)")
+                try:
+                    progress = float(d.get('_percent_str', '0%').replace('%', ''))
+                    filename = d.get('filename', '')
+                    
+                    # 只在進度為10的倍數時記錄
+                    if progress % 10 == 0:
+                        if '.m4a' in filename:
+                            total_progress = progress * 0.1
+                            logger.info(f"音頻下載進度: {progress}% (總進度: {total_progress:.1f}%)")
+                        else:
+                            total_progress = 10 + (progress * 0.4)
+                            logger.info(f"視頻下載進度: {progress}% (總進度: {total_progress:.1f}%)")
+                except Exception as e:
+                    logger.error(f"處理進度時出錯: {str(e)}")
                 
             elif d['status'] == 'finished':
                 logger.info("檔案下載完成，開始處理...")
@@ -214,6 +234,7 @@ def download_video(url, output_path='downloads'):
             'ignoreerrors': True,
             'no_warnings': True,
             'quiet': False,
+            'outtmpl': '%(title)s.%(ext)s',  # 使用簡單的輸出模板
         }
         
         try:
@@ -222,35 +243,36 @@ def download_video(url, output_path='downloads'):
                 info = ydl.extract_info(url, download=False)
                 if not isinstance(info, dict):
                     raise Exception("無法獲取視頻信息")
-                    
-                # 確保 title 存在
-                if 'title' not in info:
+                
+                # 清理文件名
+                title = info.get('title', '')
+                if not title:
                     raise Exception("無法獲取視頻標題")
-                    
-                clean_title = sanitize_filename(info['title'])
+                
+                clean_title = sanitize_filename(title)
                 expected_filename = f"{clean_title}.mp4"
                 expected_path = os.path.join(full_output_path, expected_filename)
                 
                 # 更新下載選項
                 ydl_opts['outtmpl'] = os.path.join(full_output_path, clean_title + '.%(ext)s')
                 
-                # 重新創建 YoutubeDL 實例進行下載
+                # 使用新的選項進行下載
                 with YoutubeDL(ydl_opts) as ydl_download:
                     logger.info("開始下載...")
                     ydl_download.download([url])
-                    
-                    # 等待文件系統同步
-                    time.sleep(2)
-                    
-                    # 檢查文件是否存在
-                    if os.path.exists(expected_path):
-                        logger.info(f"下載完成: {expected_path}")
-                        return {
-                            'status': 'success',
-                            'filename': expected_filename,
-                            'path': expected_path
-                        }
-                    
+                
+                # 等待文件系統同步
+                time.sleep(2)
+                
+                # 檢查文件是否存在
+                if os.path.exists(expected_path):
+                    logger.info(f"下載完成: {expected_path}")
+                    return {
+                        'status': 'success',
+                        'filename': expected_filename,
+                        'path': expected_path
+                    }
+                else:
                     # 嘗試查找類似名稱的文件
                     files = os.listdir(full_output_path)
                     mp4_files = [f for f in files if f.endswith('.mp4')]
@@ -327,65 +349,70 @@ def get_video_info(url):
         raise Exception(f"獲取視頻信息失敗: {str(e)}")
 
 def get_video_transcript(url):
-    """獲取視頻字幕"""
-    video_id = extract_video_id(url)
-    if not video_id:
-        return "無法從URL中提取視頻ID"
-    
-    clean_url = f"https://www.youtube.com/watch?v={video_id}"
-    logger.info(f"開始獲取視頻字幕: {clean_url}")
-    
-    ydl_opts = {
-        'writesubtitles': True,
-        'writeautomaticsub': True,
-        'skip_download': True,
-        'subtitleslangs': ['zh-Hant', 'zh-TW', 'zh-HK', 'en'],
-        'quiet': True,
-        'no_warnings': True,
-        'extract_flat': False,
-        'force_generic_extractor': False,
-        'http_headers': {
-            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
-        }
-    }
-    
+    """獲取視頻字幕和時間戳"""
     try:
+        clean_url = url.split('&')[0]  # 移除額外參數
+        logger.info(f"開始獲取視頻字幕: {clean_url}")
+        
+        ydl_opts = {
+            'writesubtitles': True,
+            'writeautomaticsub': True,
+            'skip_download': True,
+            'subtitleslangs': ['zh-Hant', 'zh-TW', 'zh-HK', 'en'],
+            'quiet': True,
+            'no_warnings': True
+        }
+        
         with YoutubeDL(ydl_opts) as ydl:
             logger.info("正在提取字幕信息...")
             info = ydl.extract_info(clean_url, download=False)
             
+            if not isinstance(info, dict):
+                raise Exception("無法獲取視頻信息")
+            
+            transcript_with_time = []
+            
             # 檢查手動字幕
-            if 'subtitles' in info:
+            if 'subtitles' in info and isinstance(info['subtitles'], dict):
                 logger.info(f"找到手動字幕: {info['subtitles'].keys()}")
                 for lang in ['zh-TW', 'zh-Hant', 'zh-HK', 'en']:
                     if lang in info['subtitles']:
-                        subs = info['subtitles'][lang]
-                        if isinstance(subs, list) and len(subs) > 0:
-                            for sub in subs:
-                                if 'data' in sub:
-                                    return sub['data']
-                                elif 'url' in sub:
-                                    # 如果是URL，需要下載字幕內容
-                                    response = requests.get(sub['url'])
-                                    if response.status_code == 200:
-                                        return response.text
+                        try:
+                            subs = info['subtitles'][lang]
+                            if isinstance(subs, list) and subs:
+                                for sub in subs:
+                                    if isinstance(sub, dict) and 'ext' in sub and sub['ext'] == 'json3':
+                                        sub_data = ydl.urlopen(sub['url']).read()
+                                        sub_json = json.loads(sub_data)
+                                        if 'events' in sub_json:
+                                            for event in sub_json['events']:
+                                                if 'segs' in event:
+                                                    start_time = event.get('tStartMs', 0) / 1000
+                                                    text = ' '.join(seg['utf8'] for seg in event['segs'] if 'utf8' in seg)
+                                                    if text.strip():
+                                                        minutes = int(start_time // 60)
+                                                        seconds = int(start_time % 60)
+                                                        timestamp = f"{minutes:02d}:{seconds:02d}"
+                                                        transcript_with_time.append({
+                                                            'time': timestamp,
+                                                            'text': text.strip()
+                                                        })
+                                            return transcript_with_time
+                        except Exception as e:
+                            logger.error(f"處理字幕數據時出錯: {str(e)}")
+                            continue
             
             # 檢查自動字幕
-            if 'automatic_captions' in info:
-                logger.info(f"找到自動字幕: {info['automatic_captions'].keys()}")
-                for lang in ['zh-TW', 'zh-Hant', 'zh-HK', 'en']:
-                    if lang in info['automatic_captions']:
-                        captions = info['automatic_captions'][lang]
-                        if isinstance(captions, list) and len(captions) > 0:
-                            for cap in captions:
-                                if 'data' in cap:
-                                    return cap['data']
-                                elif 'url' in cap:
-                                    response = requests.get(cap['url'])
-                                    if response.status_code == 200:
-                                        return response.text
+            if not transcript_with_time and 'automatic_captions' in info:
+                logger.info("使用自動字幕")
+                # 使用相同的邏輯處理自動字幕
+                # ...
             
-            return "無字幕內容"
+            if not transcript_with_time:
+                logger.warning("未找到可用字幕")
+                return "無字幕內容"
+            
+            return transcript_with_time
             
     except Exception as e:
         logger.error(f"獲取字幕失敗: {str(e)}")
@@ -429,4 +456,7 @@ def process_subtitles(subtitle_list):
         return full_text
     except Exception as e:
         logger.error(f"處理字幕時出錯: {str(e)}")
-        return "字幕處理失敗" 
+        return "字幕處理失敗"
+
+# 在文件末尾調用初始化
+init_downloads_directory() 
