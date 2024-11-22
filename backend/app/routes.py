@@ -68,25 +68,23 @@ def get_transcript():
             'status': 'error'
         }), 500
 
-@app.route('/api/summary', methods=['POST', 'OPTIONS'])
-def get_summary():
-    if request.method == 'OPTIONS':
-        return jsonify({}), 200
-        
+@app.route('/api/summary', methods=['POST'])
+def generate_summary():
     try:
-        logger.info("收到摘要請求")
         data = request.get_json()
         transcript = data.get('transcript')
+        video_duration = data.get('duration', 0)  # 從請求中獲取視頻時長
         
         if not transcript:
-            return jsonify({'error': '未找到字幕內容'}), 400
+            return jsonify({'error': '請提供字幕內容'}), 400
             
-        logger.info("開始生成摘要")
+        ai_service = AIService()
+        ai_service.set_video_duration(video_duration)  # 設置視頻時長
         summary = ai_service.summarize_transcript(transcript)
-        logger.info("摘要生成完成")
+        
         return jsonify({'summary': summary})
     except Exception as e:
-        logger.error(f"生成摘要時出錯: {str(e)}", exc_info=True)
+        logger.error(f"生成摘要失敗: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/video/download', methods=['POST'])

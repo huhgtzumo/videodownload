@@ -125,16 +125,27 @@ def get_merge_progress(stderr):
     return None
 
 def sanitize_filename(filename):
-    """清理文件名，移除不安全字符並限制長度"""
-    # 移除不安全字符
-    filename = re.sub(r'[\\/*?:"<>|]', "", filename)
-    # 將空格替換為下劃線
-    filename = filename.replace(' ', '_')
-    # 限制文件名長度（考慮 .mp4 副檔名）
-    max_length = 200 - 4  # 預留 .mp4 的長度
-    if len(filename) > max_length:
-        filename = filename[:max_length]
-    return filename
+    """清理文件名，移除特殊字符"""
+    # 移除特殊字符和標點符號
+    special_chars = ['《', '》', '【', '】', '「', '」', '？', '！', '：', '、', '，', '。', '（', '）', 
+                    '［', '］', '｜', '　', '"', '"', '〈', '〉', '・', '…', '『', '』']
+    for char in special_chars:
+        filename = filename.replace(char, '')
+    
+    # 移除其他不安全的文件系統字符
+    unsafe_chars = ['/', '\\', '|', ':', '*', '?', '"', '<', '>', '=']
+    for char in unsafe_chars:
+        filename = filename.replace(char, '_')
+    
+    # 移除多餘的空格和底線
+    filename = ' '.join(filename.split())
+    filename = '_'.join(filter(None, filename.split('_')))
+    
+    # 限制文件名長度
+    if len(filename) > 200:
+        filename = filename[:200]
+    
+    return filename.strip()
 
 def find_downloaded_file(directory, title):
     """查找下載的文件，支持部分匹配"""
@@ -148,7 +159,7 @@ def find_downloaded_file(directory, title):
 
 def download_video(url, output_path='downloads'):
     """下載視頻為 MP4 格式"""
-    global current_download, total_duration
+    global current_download
     
     if not download_lock.acquire(blocking=False):
         logger.warning("另一個下載正在進行中")
@@ -163,7 +174,7 @@ def download_video(url, output_path='downloads'):
         current_download = url
         
         base_path = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-        full_output_path = os.path.join(base_path, output_path)
+        full_output_path = os.path.abspath(os.path.join(base_path, output_path))
         
         if not os.path.exists(full_output_path):
             os.makedirs(full_output_path)
@@ -171,22 +182,31 @@ def download_video(url, output_path='downloads'):
         def progress_hook(d):
             if d['status'] == 'downloading':
                 progress = float(d.get('_percent_str', '0%').replace('%', ''))
-                if progress % 5 == 0:  # 每5%報告一次
-                    logger.info(f"下載進度: {progress}%")
+                filename = d.get('filename', '')
+                
+                # 只在進度為10的倍數時記錄
+                if progress % 10 == 0:
+                    if '.m4a' in filename:
+                        # 音頻下載進度（10%）
+                        total_progress = progress * 0.1
+                        logger.info(f"音頻下載進度: {progress}% (總進度: {total_progress:.1f}%)")
+                    else:
+                        # 視頻下載進度（40%）
+                        total_progress = 10 + (progress * 0.4)
+                        logger.info(f"視頻下載進度: {progress}% (總進度: {total_progress:.1f}%)")
+                
             elif d['status'] == 'finished':
-                logger.info("下載完成，開始合併...")
+                logger.info("檔案下載完成，開始處理...")
             elif d['status'] == 'merging formats':
-                logger.info("正在合併文件...")
+                logger.info("正在處理影片文件...")
         
         ydl_opts = {
             'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
-            'outtmpl': os.path.join(full_output_path, '%(title)s.%(ext)s'),
             'merge_output_format': 'mp4',
             'postprocessor_args': [
                 '-c:v', 'h264',
                 '-c:a', 'aac',
-                '-movflags', '+faststart',
-                '-progress', 'pipe:1'  # 輸出進度信息
+                '-movflags', '+faststart'
             ],
             'noplaylist': True,
             'progress_hooks': [progress_hook],
@@ -198,41 +218,55 @@ def download_video(url, output_path='downloads'):
         
         try:
             with YoutubeDL(ydl_opts) as ydl:
-                # 獲取視頻信息
-                logger.info("獲取視頻信息...")
+                # 先獲取視頻信息
                 info = ydl.extract_info(url, download=False)
-                expected_filename = f"{info['title']}.mp4"
+                if not isinstance(info, dict):
+                    raise Exception("無法獲取視頻信息")
+                    
+                # 確保 title 存在
+                if 'title' not in info:
+                    raise Exception("無法獲取視頻標題")
+                    
+                clean_title = sanitize_filename(info['title'])
+                expected_filename = f"{clean_title}.mp4"
                 expected_path = os.path.join(full_output_path, expected_filename)
-                total_duration = info.get('duration', 0)  # 獲取視頻總時長
                 
-                # 如果文件已存在，先刪除
-                if os.path.exists(expected_path):
-                    try:
-                        os.remove(expected_path)
-                        logger.info(f"已刪除已存在的文件: {expected_path}")
-                    except Exception as e:
-                        logger.error(f"刪除已存在文件失敗: {str(e)}")
+                # 更新下載選項
+                ydl_opts['outtmpl'] = os.path.join(full_output_path, clean_title + '.%(ext)s')
                 
-                # 開始下載和合併
-                logger.info("開始下載和合併...")
-                ydl.download([url])
-                
-                # 等待文件系統同步
-                time.sleep(2)
-                
-                # 檢查文件是否存在
-                if os.path.exists(expected_path):
-                    logger.info(f"視頻已成功下載到: {expected_path}")
-                    return {
-                        'status': 'success',
-                        'filename': expected_filename,
-                        'path': expected_path
-                    }
-                else:
+                # 重新創建 YoutubeDL 實例進行下載
+                with YoutubeDL(ydl_opts) as ydl_download:
+                    logger.info("開始下載...")
+                    ydl_download.download([url])
+                    
+                    # 等待文件系統同步
+                    time.sleep(2)
+                    
+                    # 檢查文件是否存在
+                    if os.path.exists(expected_path):
+                        logger.info(f"下載完成: {expected_path}")
+                        return {
+                            'status': 'success',
+                            'filename': expected_filename,
+                            'path': expected_path
+                        }
+                    
+                    # 嘗試查找類似名稱的文件
+                    files = os.listdir(full_output_path)
+                    mp4_files = [f for f in files if f.endswith('.mp4')]
+                    if mp4_files:
+                        actual_path = os.path.join(full_output_path, mp4_files[0])
+                        logger.info(f"找到下載文件: {actual_path}")
+                        return {
+                            'status': 'success',
+                            'filename': mp4_files[0],
+                            'path': actual_path
+                        }
+                    
                     raise Exception("無法找到下載的視頻文件")
                     
         except Exception as e:
-            logger.error(f"下載或合併過程出錯: {str(e)}")
+            logger.error(f"下載過程出錯: {str(e)}")
             raise
             
     except Exception as e:
@@ -244,7 +278,6 @@ def download_video(url, output_path='downloads'):
     finally:
         # 清理臨時文件
         clean_temp_files(output_path)
-        
         # 重置下載狀態
         current_download = None
         download_lock.release()
