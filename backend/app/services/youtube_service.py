@@ -144,7 +144,7 @@ def get_merge_progress(stderr):
     return None
 
 def sanitize_filename(filename):
-    """清理文件名，移除特殊字符"""
+    """清理文件名，��除特殊字符"""
     # 移除特殊字符和標點符號
     special_chars = ['《', '》', '【', '】', '「', '」', '？', '！', '：', '、', '，', '。', '（', '）', 
                     '［', '］', '｜', '　', '"', '"', '〈', '〉', '・', '…', '『', '』']
@@ -207,14 +207,15 @@ def download_video(url, output_path='downloads'):
                     # 只在進度為10的倍數時記錄
                     if progress % 10 == 0:
                         if '.m4a' in filename:
-                            total_progress = progress * 0.1
+                            # 音頻下載佔總進度 40-50
+                            total_progress = 40 + (progress * 0.1)
                             logger.info(f"音頻下載進度: {progress}% (總進度: {total_progress:.1f}%)")
                         else:
-                            total_progress = 10 + (progress * 0.4)
+                            # 視頻下載佔總進度 0-40
+                            total_progress = progress * 0.4
                             logger.info(f"視頻下載進度: {progress}% (總進度: {total_progress:.1f}%)")
                 except Exception as e:
                     logger.error(f"處理進度時出錯: {str(e)}")
-                
             elif d['status'] == 'finished':
                 logger.info("檔案下載完成，開始處理...")
             elif d['status'] == 'merging formats':
