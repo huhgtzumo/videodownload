@@ -75,6 +75,7 @@ const VideoForm = () => {
         setIsDownloading(true);
         setDownloadProgress(0);
         setDownloadStage('準備下載...');
+        setDownloadCompleted(false);  // 重置完成狀態
         
         // 清理之前的計時器
         if (mergeInterval.current) {
@@ -90,7 +91,7 @@ const VideoForm = () => {
             if (data.progress < 50) {
                 // 下載階段
                 setDownloadProgress(data.progress);
-                setDownloadStage(`下載處理中：${Math.round(data.progress)}%`);
+                setDownloadStage(`影片文件下載中：${Math.round(data.progress)}%`);
             } else {
                 // 合併階段開始，關閉 EventSource
                 eventSource.close();
@@ -98,10 +99,10 @@ const VideoForm = () => {
                 // 開始模擬合併進度
                 let mergeProgress = 50;
                 mergeInterval.current = setInterval(() => {
-                    mergeProgress += 0.5;
+                    mergeProgress += 0.3;
                     if (mergeProgress < 99) {
                         setDownloadProgress(mergeProgress);
-                        setDownloadStage(`處理影片中：${Math.round(mergeProgress)}%`);
+                        setDownloadStage(`影片處理中：${Math.round(mergeProgress)}%`);
                     }
                 }, 1000);
             }
@@ -122,7 +123,8 @@ const VideoForm = () => {
         
         // 設置完成狀態
         setDownloadProgress(100);
-        setDownloadStage('下載完成！');
+        setDownloadStage('已完成下載，請檢查下載資料夾');
+        setDownloadCompleted(true);  // 設置完成狀態為 true
         
         // 處理文件下載
         const blob = new Blob([response.data], { type: 'video/mp4' });
@@ -140,6 +142,7 @@ const VideoForm = () => {
         setError(error.message || '下載失敗，請稍後再試');
         setDownloadStage('下載失敗');
         setDownloadProgress(0);
+        setDownloadCompleted(false);  // 設置完成狀態為 false
     } finally {
         setIsDownloading(false);
     }
