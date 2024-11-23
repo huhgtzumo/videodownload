@@ -74,7 +74,7 @@ class AIService:
             response = self.client.chat.completions.create(
                 model="gpt-3.5-turbo-16k",
                 messages=[
-                    {"role": "system", "content": f"""你是一個專業的視頻分析助手。請按照以下格式生成 3至8 條視頻目錄：
+                    {"role": "system", "content": f"""你是一個專業的視頻分析助手。請按以下格式生成3到8條視頻目錄。每條目錄之間間隔一行：
 
 
 **1**、[02:15] 開場介紹：視頻主要內容概述  
