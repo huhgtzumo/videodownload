@@ -61,7 +61,7 @@ const VideoForm = () => {
     } catch (err) {
       clearInterval(progressInterval);
       console.error('錯誤詳情:', err);
-      const errorMessage = err.response?.data?.error || '處理失敗，請檢查視頻連結是否正確';
+      const errorMessage = err.response?.data?.error || '處理失敗，請檢查影片連結是否正確';
       setError(errorMessage);
       setProcessStatus('');
     } finally {
@@ -155,7 +155,7 @@ const VideoForm = () => {
           type="text"
           value={url}
           onChange={(e) => setUrl(e.target.value)}
-          placeholder="輸入YouTube視頻連結"
+          placeholder="輸入YouTube影片連結"
           className="url-input"
         />
         <button type="submit" disabled={loading}>
@@ -206,7 +206,7 @@ const VideoForm = () => {
               disabled={isDownloading}
               className="download-button"
             >
-              {isDownloading ? '下載中...' : '下載視頻'}
+              {isDownloading ? '下載中...' : '下載影片'}
             </button>
             
             {(isDownloading || downloadCompleted) && (
