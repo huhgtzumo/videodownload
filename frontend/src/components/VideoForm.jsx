@@ -82,93 +82,48 @@ const VideoForm = () => {
             mergeInterval.current = null;
         }
         
+        // 開始模擬進度
+        mergeInterval.current = setInterval(() => {
+            setDownloadProgress(prev => {
+                const newProgress = prev + 1;
+                if (newProgress < 99) {
+                    setDownloadStage(`下載處理中：${newProgress}%`);
+                    return newProgress;
+                }
+                return prev;
+            });
+        }, 1000);
+        
+        // 實際下載請求
         const response = await axios.post(
             'http://localhost:5001/api/video/download', 
             { url },
-            { 
-                responseType: 'blob',
-                onDownloadProgress: (progressEvent) => {
-                    if (progressEvent.total) {
-                        const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-                        let stage = '';
-                        let progress = 0;
-                        
-                        // 更新下載進度
-                        if (percent <= 40) {
-                            // 視頻文件下載階段 (40%)
-                            stage = '影片文件下載中';
-                            progress = percent;
-                            setDownloadStage(`${stage}：${progress}%`);
-                            setDownloadProgress(progress);
-                        } else if (percent <= 50) {
-                            // 音頻文件下載階段 (10%)
-                            stage = '音頻文件下載中';
-                            progress = 40 + ((percent - 40) * 10);
-                            setDownloadStage(`${stage}：${progress}%`);
-                            setDownloadProgress(progress);
-                        } else {
-                            // 合併階段 (50%)
-                            stage = '影片文件處理中';
-                            if (!mergeInterval.current) {
-                                progress = 50;
-                                setDownloadProgress(50);
-                                
-                                // 每秒增加1%，直到99%
-                                mergeInterval.current = setInterval(() => {
-                                    setDownloadProgress(prev => {
-                                        const newProgress = prev + 1;
-                                        if (newProgress < 99) {
-                                            setDownloadStage(`影片文件處理中：${newProgress}%`);
-                                            return newProgress;
-                                        }
-                                        setDownloadStage(`影片文件處理中：99%`);
-                                        return 99;
-                                    });
-                                }, 1000);
-                            }
-                        }
-                    }
-                }
-            }
+            { responseType: 'blob' }
         );
         
-        // 清理合併進度計時器
+        // 清理計時器
         if (mergeInterval.current) {
             clearInterval(mergeInterval.current);
             mergeInterval.current = null;
         }
         
-        // 檢查響應類型
-        const contentType = response.headers['content-type'];
-        if (contentType && contentType.includes('application/json')) {
-            // 處理錯誤響應
-            const reader = new FileReader();
-            reader.onload = () => {
-                const error = JSON.parse(reader.result);
-                throw new Error(error.message || '下載失敗');
-            };
-            reader.readAsText(response.data);
-            return;
-        }
+        // 設置完成狀態
+        setDownloadProgress(100);
+        setDownloadStage('下載完成！');
         
-        // 處理下載
+        // 處理文件下載
         const blob = new Blob([response.data], { type: 'video/mp4' });
         const downloadUrl = window.URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = downloadUrl;
         link.download = `${videoInfo?.title || 'video'}.mp4`;
-        
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
         window.URL.revokeObjectURL(downloadUrl);
         
-        // 設置完成狀態
-        setDownloadStage('下載完成：100%');
-        setDownloadProgress(100);
-        
     } catch (error) {
-        console.error('下載失敗:', error);
+        console.error('下載錯誤:', error);
         setError(error.message || '下載失敗，請稍後再試');
         setDownloadStage('下載失敗');
         setDownloadProgress(0);
