@@ -1,9 +1,11 @@
-from flask import jsonify, request, send_file
+from flask import jsonify, request, send_file, Response
 from app import app
-from .services.youtube_service import get_video_info, get_video_transcript, download_video
+from .services.youtube_service import get_video_info, get_video_transcript, download_video, current_progress
 from .services.ai_service import AIService
 import logging
 import os
+import json
+import time
 
 # 設置日誌
 logging.basicConfig(level=logging.DEBUG)
@@ -152,3 +154,17 @@ def health_check():
         return jsonify({'status': 'healthy'}), 200
     except Exception as e:
         return jsonify({'status': 'unhealthy', 'error': str(e)}), 500
+
+@app.route('/api/video/download/progress')
+def download_progress():
+    def generate():
+        while True:
+            progress = current_progress.get('value', 0)
+            data = json.dumps({
+                'progress': progress,
+                'stage': 'downloading' if progress < 50 else 'processing'
+            })
+            yield f"data: {data}\n\n"
+            time.sleep(0.5)
+    
+    return Response(generate(), mimetype='text/event-stream')

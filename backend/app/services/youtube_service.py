@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 download_lock = Lock()
 current_download = None
 merge_process = None
+current_progress = {'value': 0}
 
 def init_downloads_directory(output_path='downloads'):
     """初始化下載目錄，清理所有歷史文件"""
@@ -144,7 +145,7 @@ def get_merge_progress(stderr):
     return None
 
 def sanitize_filename(filename):
-    """清理文件名，��除特殊字符"""
+    """清理文件名，除特殊字符"""
     # 移除特殊字符和標點符號
     special_chars = ['《', '》', '【', '】', '「', '」', '？', '！', '：', '、', '，', '。', '（', '）', 
                     '［', '］', '｜', '　', '"', '"', '〈', '〉', '・', '…', '『', '』']
@@ -179,6 +180,7 @@ def find_downloaded_file(directory, title):
 def download_video(url, output_path='downloads'):
     """下載視頻為 MP4 格式"""
     global current_download
+    current_progress = {'value': 0}  # 用於追踪當前進度
     
     if not download_lock.acquire(blocking=False):
         logger.warning("另一個下載正在進行中")
@@ -199,21 +201,19 @@ def download_video(url, output_path='downloads'):
             os.makedirs(full_output_path)
         
         def progress_hook(d):
+            global current_progress
             if d['status'] == 'downloading':
                 try:
                     progress = float(d.get('_percent_str', '0%').replace('%', ''))
                     filename = d.get('filename', '')
                     
-                    # 只在進度為10的倍數時記錄
-                    if progress % 10 == 0:
-                        if '.m4a' in filename:
-                            # 音頻下載佔總進度 40-50
-                            total_progress = 40 + (progress * 0.1)
-                            logger.info(f"音頻下載進度: {progress}% (總進度: {total_progress:.1f}%)")
-                        else:
-                            # 視頻下載佔總進度 0-40
-                            total_progress = progress * 0.4
-                            logger.info(f"視頻下載進度: {progress}% (總進度: {total_progress:.1f}%)")
+                    if '.m4a' in filename:
+                        total_progress = 40 + (progress * 0.1)
+                    else:
+                        total_progress = progress * 0.4
+                    
+                    current_progress['value'] = total_progress
+                    logger.info(f"總進度: {total_progress:.1f}%")
                 except Exception as e:
                     logger.error(f"處理進度時出錯: {str(e)}")
             elif d['status'] == 'finished':

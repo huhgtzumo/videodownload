@@ -82,17 +82,30 @@ const VideoForm = () => {
             mergeInterval.current = null;
         }
         
-        // 開始模擬進度
-        mergeInterval.current = setInterval(() => {
-            setDownloadProgress(prev => {
-                const newProgress = prev + 1;
-                if (newProgress < 99) {
-                    setDownloadStage(`下載處理中：${newProgress}%`);
-                    return newProgress;
-                }
-                return prev;
-            });
-        }, 1000);
+        // 創建 EventSource 來接收進度更新
+        const eventSource = new EventSource(`http://localhost:5001/api/video/download/progress`);
+        
+        eventSource.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            if (data.progress < 50) {
+                // 下載階段
+                setDownloadProgress(data.progress);
+                setDownloadStage(`下載處理中：${Math.round(data.progress)}%`);
+            } else {
+                // 合併階段開始，關閉 EventSource
+                eventSource.close();
+                
+                // 開始模擬合併進度
+                let mergeProgress = 50;
+                mergeInterval.current = setInterval(() => {
+                    mergeProgress += 0.5;
+                    if (mergeProgress < 99) {
+                        setDownloadProgress(mergeProgress);
+                        setDownloadStage(`處理影片中：${Math.round(mergeProgress)}%`);
+                    }
+                }, 1000);
+            }
+        };
         
         // 實際下載請求
         const response = await axios.post(
@@ -129,10 +142,6 @@ const VideoForm = () => {
         setDownloadProgress(0);
     } finally {
         setIsDownloading(false);
-        if (mergeInterval.current) {
-            clearInterval(mergeInterval.current);
-            mergeInterval.current = null;
-        }
     }
   };
 
