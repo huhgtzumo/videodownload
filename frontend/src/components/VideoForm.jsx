@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import axios from 'axios';
 import './VideoForm.css';
 import ReactMarkdown from 'react-markdown';
+import { API_ENDPOINTS } from '../config/api';
 
 const VideoForm = () => {
   const [url, setUrl] = useState('');
@@ -40,12 +41,12 @@ const VideoForm = () => {
     
     try {
       // 獲取視頻信息
-      const infoResponse = await axios.post('http://localhost:5001/api/video/info', { url });
+      const infoResponse = await axios.post(API_ENDPOINTS.VIDEO_INFO, { url });
       setVideoInfo(infoResponse.data);
       
       // 獲取字幕並生成摘要
-      const transcriptResponse = await axios.post('http://localhost:5001/api/transcript', { url });
-      const summaryResponse = await axios.post('http://localhost:5001/api/summary', {
+      const transcriptResponse = await axios.post(API_ENDPOINTS.TRANSCRIPT, { url });
+      const summaryResponse = await axios.post(API_ENDPOINTS.SUMMARY, {
         transcript: transcriptResponse.data.transcript,
         duration: infoResponse.data.duration
       });
@@ -84,7 +85,7 @@ const VideoForm = () => {
         }
         
         // 創建 EventSource 來接收進度更新
-        const eventSource = new EventSource(`http://localhost:5001/api/video/download/progress`);
+        const eventSource = new EventSource(API_ENDPOINTS.DOWNLOAD_PROGRESS);
         
         eventSource.onmessage = (event) => {
             const data = JSON.parse(event.data);
@@ -110,7 +111,7 @@ const VideoForm = () => {
         
         // 實際下載請求
         const response = await axios.post(
-            'http://localhost:5001/api/video/download', 
+            API_ENDPOINTS.VIDEO_DOWNLOAD, 
             { url },
             { responseType: 'blob' }
         );

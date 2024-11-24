@@ -45,7 +45,3 @@ Thumbs.db
 
 # Project specific
 downloads/
-temp_audio/
-*.mov
-*.mp4
-*.wav

@@ -7,13 +7,13 @@ services:
       - "5001:5001"
     environment:
       - FLASK_APP=app
-      - FLASK_ENV=development
-      - FLASK_DEBUG=1
+      - FLASK_ENV=production
+      - FLASK_DEBUG=0
       - OPENAI_API_KEY=${OPENAI_API_KEY}
-    restart: unless-stopped
+    restart: always
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
-      interval: 6h
+      interval: 30m
       timeout: 30s
       retries: 3
 
@@ -23,10 +23,10 @@ services:
       - ./frontend:/app
       - /app/node_modules
     ports:
-      - "3000:3000"
+      - "80:3000"
     environment:
-      - NODE_ENV=development
-    restart: unless-stopped
+      - NODE_ENV=production
+    restart: always
     depends_on:
       - backend
 

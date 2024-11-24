@@ -13,7 +13,7 @@ app = Flask(__name__)
 # 配置 CORS
 CORS(app, resources={
     r"/api/*": {
-        "origins": ["http://localhost:3000"],
+        "origins": ["https://ai.zimogogo.com/"],
         "methods": ["GET", "POST", "OPTIONS"],
         "allow_headers": ["Content-Type"]
     }
