@@ -36,6 +36,14 @@ def init_downloads_directory(output_path='downloads'):
     except Exception as e:
         logger.error(f"清理下載目錄時出錯: {str(e)}")
 
+def detect_platform(url):
+    """檢測URL所屬平台"""
+    if re.search(r'(youtube\.com|youtu\.be)', url, re.IGNORECASE):
+        return 'youtube'
+    elif re.search(r'(x\.com|twitter\.com)', url, re.IGNORECASE):
+        return 'x'
+    return 'other'
+
 def extract_video_id(url):
     """從各種可能的YouTube URL格式中提取視頻ID"""
     patterns = [
@@ -43,11 +51,18 @@ def extract_video_id(url):
         r'(?:embed/|v%3D|vi%2F)([^%&?/]+)',  # 嵌入式格式
         r'(?:watch\?|youtube\.com/user/[^/]+/)([^&?/]+)'  # 用戶上傳格式
     ]
-    
+
     for pattern in patterns:
         match = re.search(pattern, url)
         if match:
             return match.group(1)
+    return None
+
+def extract_x_status_id(url):
+    """從X/Twitter URL中提取狀態ID"""
+    match = re.search(r'(?:x\.com|twitter\.com)/[^/]+/status/(\d+)', url)
+    if match:
+        return match.group(1)
     return None
 
 def get_cookies():
@@ -179,8 +194,8 @@ def find_downloaded_file(directory, title):
 
 def download_video(url, output_path='downloads'):
     """下載視頻為 MP4 格式"""
-    global current_download
-    current_progress = {'value': 0}  # 用於追踪當前進度
+    global current_download, current_progress
+    current_progress['value'] = 0  # 重置進度
     
     if not download_lock.acquire(blocking=False):
         logger.warning("另一個下載正在進行中")
@@ -201,7 +216,7 @@ def download_video(url, output_path='downloads'):
             os.makedirs(full_output_path)
         
         def progress_hook(d):
-            global current_progress
+            global current_progress  # 使用模組級別的全局變量
             if d['status'] == 'downloading':
                 try:
                     progress = float(d.get('_percent_str', '0%').replace('%', ''))
@@ -307,44 +322,55 @@ def download_video(url, output_path='downloads'):
 
 def get_video_info(url):
     logger.info(f"開始獲取視頻信息: {url}")
-    
-    # 首先提取視頻ID
-    video_id = extract_video_id(url)
-    if not video_id:
-        raise Exception("無法從URL中提取視頻ID")
-    
-    # 構建乾淨的視頻URL
-    clean_url = f"https://www.youtube.com/watch?v={video_id}"
-    logger.info(f"處理乾淨的URL: {clean_url}")
-    
+
+    platform = detect_platform(url)
+
+    if platform == 'youtube':
+        video_id = extract_video_id(url)
+        if not video_id:
+            raise Exception("無法從URL中提取視頻ID")
+        clean_url = f"https://www.youtube.com/watch?v={video_id}"
+    elif platform == 'x':
+        status_id = extract_x_status_id(url)
+        if not status_id:
+            raise Exception("無法從X URL中提取狀態ID")
+        clean_url = url
+        video_id = status_id
+    else:
+        raise Exception("不支援的平台，目前支援 YouTube 和 X (Twitter)")
+
+    logger.info(f"處理URL: {clean_url} (平台: {platform})")
+
     ydl_opts = {
         'quiet': True,
         'no_warnings': True,
-        'format': 'best',  # 使用最佳品質
+        'format': 'best',
         'extract_flat': False,
         'no_playlist': True,
         'retries': 10,
         'socket_timeout': 30,
     }
-    
+
     try:
         with YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(clean_url, download=False)
-            
+
             if not info:
                 raise Exception("無法獲取視頻信息")
-            
+
             result = {
                 'title': info.get('title'),
-                'video_id': video_id,  # 返回視頻ID而不是直接URL
+                'video_id': video_id,
+                'platform': platform,
                 'thumbnail': info.get('thumbnail'),
                 'description': info.get('description'),
                 'duration': info.get('duration'),
+                'url': clean_url,
             }
-            
+
             logger.info(f"成功獲取視頻信息: {result['title']}")
             return result
-            
+
     except Exception as e:
         logger.error(f"獲取視頻信息失敗: {str(e)}")
         raise Exception(f"獲取視頻信息失敗: {str(e)}")

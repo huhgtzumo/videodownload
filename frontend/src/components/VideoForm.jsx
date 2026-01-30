@@ -155,7 +155,7 @@ const VideoForm = () => {
           type="text"
           value={url}
           onChange={(e) => setUrl(e.target.value)}
-          placeholder="輸入YouTube影片連結"
+          placeholder="輸入 YouTube 或 X (Twitter) 影片連結"
           className="url-input"
         />
         <button type="submit" disabled={loading}>
@@ -186,15 +186,23 @@ const VideoForm = () => {
       {videoInfo && (
         <div className="video-container">
           <div className="video-wrapper">
-            <iframe
-              width="100%"
-              height="480"
-              src={`https://www.youtube.com/embed/${videoInfo.video_id}`}
-              title={videoInfo.title}
-              frameBorder="0"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              allowFullScreen
-            ></iframe>
+            {videoInfo.platform === 'youtube' ? (
+              <iframe
+                width="100%"
+                height="480"
+                src={`https://www.youtube.com/embed/${videoInfo.video_id}`}
+                title={videoInfo.title}
+                frameBorder="0"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+              ></iframe>
+            ) : videoInfo.thumbnail ? (
+              <img
+                src={videoInfo.thumbnail}
+                alt={videoInfo.title}
+                style={{ width: '100%', borderRadius: '8px' }}
+              />
+            ) : null}
           </div>
           
           <h2>{videoInfo.title}</h2>
