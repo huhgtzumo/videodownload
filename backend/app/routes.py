@@ -1,6 +1,6 @@
 from flask import jsonify, request, send_file, Response
 from app import app
-from .services.youtube_service import get_video_info, get_video_transcript, download_video, current_progress
+from .services.youtube_service import get_video_info, get_video_transcript, download_video, current_progress, detect_platform
 from .services.ai_service import AIService
 import logging
 import os
